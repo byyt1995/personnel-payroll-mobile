@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#155eef">
+  <meta name="color-scheme" content="light">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="人员工资管理加密云端只读查询端">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="工资查询">
+  <title>人员工资查询</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./styles.css">
+  <script src="./cloud-snapshot.js" defer></script>
+  <script src="./vendor/msal-browser.min.js" defer></script>
+  <script src="./microsoft-auth.js" defer></script>
+  <script src="./onedrive-snapshot.js" defer></script>
+  <script src="./app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+  <section id="login-screen" class="login-screen" aria-labelledby="login-title">
+    <div class="login-wrap">
+      <div class="brand-mark" aria-hidden="true"><span></span><i></i><b></b></div>
+      <p class="eyebrow">人员工资管理</p>
+      <h1 id="login-title">手机只读查询</h1>
+      <p class="login-lead">输入访问码，查询人员资料和申报金额。</p>
+
+      <div id="demo-notice" class="demo-notice hidden" role="note">
+        <strong>当前为演示模式</strong>
+        <span>页面使用内置虚构数据，不连接正式资料。</span>
+      </div>
+
+      <div id="microsoft-login-step" class="login-card login-step hidden">
+        <div class="login-step-heading">
+          <span class="step-number" aria-hidden="true">1</span>
+          <div>
+            <strong>登录 Microsoft 个人账号</strong>
+            <p>使用与电脑 OneDrive 相同的账号，只读取本软件的应用文件夹。</p>
+          </div>
+        </div>
+        <button id="microsoft-login-button" class="secondary-button full-width" type="button">登录 Microsoft 账号</button>
+        <p id="microsoft-login-status" class="field-hint" role="status"></p>
+      </div>
+
+      <form id="login-form" class="login-card" novalidate>
+        <div id="access-code-step-heading" class="login-step-heading hidden">
+          <span class="step-number" aria-hidden="true">2</span>
+          <div>
+            <strong>输入8位访问码</strong>
+            <p>验证后资料只在本次打开期间解密。</p>
+          </div>
+        </div>
+        <label id="access-code-label" for="access-code">访问码</label>
+        <div class="password-field">
+          <input id="access-code" name="accessCode" type="password" inputmode="numeric" pattern="[0-9]*"
+            maxlength="8" autocomplete="current-password" enterkeyhint="go" placeholder="请输入8位访问码"
+            required aria-describedby="login-hint login-error">
+          <button id="toggle-code" class="field-button" type="button" aria-label="显示访问码" aria-pressed="false">显示</button>
+        </div>
+        <p id="login-hint" class="field-hint">8位访问码由电脑端管理员提供。</p>
+        <p id="login-error" class="form-error hidden" role="alert"></p>
+        <button id="login-button" class="primary-button full-width" type="submit">进入查询</button>
+      </form>
+
+      <div class="privacy-note">
+        <span class="lock-dot" aria-hidden="true"></span>
+        <span>仅供查询 · 不可新增、修改或删除</span>
+      </div>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app-shell hidden">
+    <header class="topbar">
+      <div class="topbar-main">
+        <div>
+          <p class="topbar-kicker">人员工资管理</p>
+          <h1>手机查询</h1>
+        </div>
+        <button id="logout-button" class="text-button" type="button">退出</button>
+      </div>
+      <div class="readonly-strip">
+        <strong><span aria-hidden="true">●</span> 只读模式</strong>
+        <span>资料只能查看，不能修改</span>
+      </div>
+      <div id="cloud-sync-strip" class="cloud-sync-strip hidden" role="status"></div>
+      <div id="demo-app-notice" class="app-demo-strip hidden">演示数据 · 均为虚构信息</div>
+    </header>
+
+    <main id="main-content" class="main-content" tabindex="-1">
+      <section id="home-view" class="view" data-view="home" aria-labelledby="home-title">
+        <div class="hero-card">
+          <p class="section-kicker">快速查询</p>
+          <h2 id="home-title">您要找哪位人员？</h2>
+          <p>姓名、身份证、手机号或包工头均可查询。</p>
+          <form id="people-search-form" class="search-form" role="search">
+            <label class="sr-only" for="people-search">搜索人员</label>
+            <div class="search-box large-search">
+              <span class="search-symbol" aria-hidden="true"></span>
+              <input id="people-search" type="search" autocomplete="off" enterkeyhint="search"
+                placeholder="姓名 / 身份证 / 手机号 / 包工头">
+              <button id="clear-people-search" class="clear-button hidden" type="button" aria-label="清空搜索">×</button>
+            </div>
+            <button class="primary-button" type="submit">查询</button>
+          </form>
+        </div>
+
+        <div id="search-welcome" class="welcome-panel state-panel">
+          <div class="state-icon search-state-icon" aria-hidden="true"></div>
+          <h3>输入关键词开始查询</h3>
+          <p>支持姓名、身份证号、手机号和包工头名称。</p>
+        </div>
+        <section id="search-results-section" class="content-section hidden" aria-labelledby="search-results-title">
+          <div class="section-heading">
+            <div>
+              <p class="section-kicker">查询结果</p>
+              <h2 id="search-results-title">找到的人员</h2>
+            </div>
+            <span id="search-result-count" class="count-pill">0 人</span>
+          </div>
+          <div id="search-results" class="card-list"></div>
+        </section>
+      </section>
+
+      <section id="monthly-view" class="view hidden" data-view="monthly" aria-labelledby="monthly-title">
+        <div class="page-heading">
+          <p class="section-kicker">按月查看</p>
+          <h2 id="monthly-title">月度申报明细</h2>
+          <p>选择年月和班组，再查看人员申报金额。</p>
+        </div>
+
+        <form id="monthly-filter-form" class="filter-card">
+          <div class="two-column-fields">
+            <label>年份
+              <select id="monthly-year" name="year"></select>
+            </label>
+            <label>月份
+              <select id="monthly-month" name="month"></select>
+            </label>
+          </div>
+          <label>班组 / 包工头
+            <select id="monthly-group" name="groupId">
+              <option value="">全部班组</option>
+            </select>
+          </label>
+          <label>搜索人员
+            <input id="monthly-search" name="q" type="search" autocomplete="off" enterkeyhint="search"
+              placeholder="姓名 / 身份证 / 手机号">
+          </label>
+          <button class="primary-button full-width" type="submit">查看明细</button>
+        </form>
+
+        <div id="monthly-summary" class="summary-card hidden" aria-live="polite"></div>
+        <div id="monthly-results" class="card-list"></div>
+        <div id="monthly-placeholder" class="state-panel compact-state">
+          <div class="state-icon calendar-state-icon" aria-hidden="true"></div>
+          <h3>请选择月份</h3>
+          <p>点击“查看明细”后显示申报记录。</p>
+        </div>
+      </section>
+
+      <section id="stats-view" class="view hidden" data-view="stats" aria-labelledby="stats-title">
+        <div class="page-heading">
+          <p class="section-kicker">月度统计</p>
+          <h2 id="stats-title">申报概况与汇总</h2>
+          <p>查看选定月份的合计与各班组情况。</p>
+        </div>
+
+        <form id="stats-filter-form" class="inline-filter-card">
+          <label>年份
+            <select id="stats-year" name="year"></select>
+          </label>
+          <label>月份
+            <select id="stats-month" name="month"></select>
+          </label>
+          <button class="secondary-button" type="submit">刷新</button>
+        </form>
+
+        <div id="stats-content" class="hidden">
+          <section aria-labelledby="stats-overview-title">
+            <div class="section-heading simple-heading">
+              <h3 id="stats-overview-title">本月概况</h3>
+              <span id="stats-period" class="count-pill"></span>
+            </div>
+            <div id="stats-cards" class="metric-grid"></div>
+          </section>
+
+          <section class="content-section" aria-labelledby="year-trend-title">
+            <div class="section-heading simple-heading">
+              <div>
+                <h3 id="year-trend-title">全年月度趋势</h3>
+                <p class="support-text">金额单位：元</p>
+              </div>
+            </div>
+            <div id="monthly-chart" class="bar-chart" role="img" aria-label="全年每月申报金额柱状图"></div>
+          </section>
+
+          <section class="content-section" aria-labelledby="group-summary-title">
+            <div class="section-heading simple-heading">
+              <div>
+                <h3 id="group-summary-title">班组 / 包工头汇总</h3>
+                <p class="support-text">按本月申报金额从高到低排列</p>
+              </div>
+            </div>
+            <div id="group-stats" class="summary-list"></div>
+          </section>
+        </div>
+        <div id="stats-placeholder" class="state-panel compact-state">
+          <div class="state-icon chart-state-icon" aria-hidden="true"></div>
+          <h3>统计数据准备中</h3>
+          <p>进入此页后将自动读取。</p>
+        </div>
+      </section>
+
+      <section id="logs-view" class="view hidden" data-view="logs" aria-labelledby="logs-title">
+        <div class="page-heading">
+          <p class="section-kicker">操作留痕</p>
+          <h2 id="logs-title">操作日志</h2>
+          <p>只展示电脑端已记录的操作，不可在手机端更改。</p>
+        </div>
+
+        <form id="logs-filter-form" class="filter-card compact-filter">
+          <label>模块
+            <select id="logs-module" name="module">
+              <option value="">全部模块</option>
+              <option value="人员管理">人员管理</option>
+              <option value="工资表">工资表</option>
+              <option value="申报管理">申报管理</option>
+              <option value="数据维护">数据维护</option>
+            </select>
+          </label>
+          <label>关键词
+            <input id="logs-search" name="q" type="search" autocomplete="off" enterkeyhint="search"
+              placeholder="人员、批次或操作编号">
+          </label>
+          <button class="secondary-button full-width" type="submit">筛选日志</button>
+        </form>
+
+        <div class="section-heading simple-heading logs-heading">
+          <h3>最近操作</h3>
+          <span id="logs-count" class="count-pill">0 条</span>
+        </div>
+        <div id="logs-results" class="timeline-list"></div>
+        <div id="logs-placeholder" class="state-panel compact-state">
+          <div class="state-icon log-state-icon" aria-hidden="true"></div>
+          <h3>日志准备中</h3>
+          <p>进入此页后将自动读取。</p>
+        </div>
+      </section>
+
+      <section id="person-detail-view" class="view hidden" data-view="person" aria-labelledby="person-detail-title">
+        <button id="person-back-button" class="back-button" type="button"><span aria-hidden="true">‹</span> 返回</button>
+        <div id="person-detail"></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="主要导航">
+      <button class="nav-button active" type="button" data-nav="home" aria-current="page">
+        <span class="nav-icon home-icon" aria-hidden="true"></span><span>首页</span>
+      </button>
+      <button class="nav-button" type="button" data-nav="monthly">
+        <span class="nav-icon month-icon" aria-hidden="true"></span><span>按月</span>
+      </button>
+      <button class="nav-button" type="button" data-nav="stats">
+        <span class="nav-icon stats-icon" aria-hidden="true"></span><span>统计</span>
+      </button>
+      <button class="nav-button" type="button" data-nav="logs">
+        <span class="nav-icon logs-icon" aria-hidden="true"></span><span>日志</span>
+      </button>
+    </nav>
+  </div>
+
+  <dialog id="receipt-dialog" class="receipt-dialog" aria-labelledby="receipt-dialog-title">
+    <div class="receipt-dialog-header">
+      <div>
+        <p class="section-kicker">付款凭据</p>
+        <h2 id="receipt-dialog-title">本月凭据</h2>
+        <p id="receipt-dialog-subtitle" class="support-text"></p>
+      </div>
+      <button id="receipt-dialog-close" class="dialog-close-button" type="button" aria-label="关闭付款凭据">×</button>
+    </div>
+    <div class="receipt-security-note">仅在本次查看期间解密，不自动保存到手机相册或浏览器缓存。</div>
+    <div id="receipt-results" class="receipt-list"></div>
+    <section id="receipt-viewer" class="receipt-viewer hidden" aria-labelledby="receipt-viewer-title">
+      <div class="receipt-viewer-toolbar">
+        <button id="receipt-viewer-back" class="secondary-button" type="button">返回凭据列表</button>
+      </div>
+      <h3 id="receipt-viewer-title"></h3>
+      <img id="receipt-image-viewer" class="receipt-image-viewer hidden" alt="付款凭据图片">
+      <iframe id="receipt-pdf-viewer" class="receipt-pdf-viewer hidden" title="付款凭据 PDF"></iframe>
+      <div id="receipt-viewer-error" class="empty-inline hidden"></div>
+    </section>
+  </dialog>
+
+  <div id="loading-overlay" class="loading-overlay hidden" role="status" aria-live="polite" aria-label="正在加载">
+    <div class="loading-card">
+      <span class="spinner" aria-hidden="true"></span>
+      <strong id="loading-text">正在读取，请稍候</strong>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+</body>
+</html>

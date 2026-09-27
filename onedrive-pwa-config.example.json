@@ -1,0 +1,7 @@
+{
+  "format": "personnel-payroll-onedrive-pwa-config",
+  "version": 1,
+  "pwaUrl": "https://payroll.example.com/",
+  "clientId": "00000000-0000-0000-0000-000000000000",
+  "appFolderRelativePath": "Apps/人员工资管理"
+}
